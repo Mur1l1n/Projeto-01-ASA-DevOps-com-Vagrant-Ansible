@@ -1,0 +1,99 @@
+---
+- name: Configura os servidores do Projeto 01
+  hosts: servidores
+  become: true
+  tasks:
+    # Atualização do sistema operacional
+    - name: Atualiza o cache dos pacotes
+      apt:
+        update_cache: yes
+
+    - name: Atualiza o sistema operacional
+      apt:
+        upgrade: yes
+
+    # Configuração do NTP
+    - name: Instala o chrony
+      apt:
+        name: chrony
+        state: present
+
+    - name: Comenta os pools NTP anteriores
+      replace:
+        path: /etc/chrony/chrony.conf
+        regexp: '^(pool\s+(?!pool\.ntp\.br\b).*)$'
+        replace: '# \1'
+      notify: restart chrony
+
+    - name: Configura o pool.ntp.br
+      lineinfile:
+        path: /etc/chrony/chrony.conf
+        regexp: '^pool pool\.ntp\.br\b'
+        line: "pool pool.ntp.br iburst"
+        state: present
+      notify: restart chrony
+
+    - name: Habilita o serviço chrony
+      service:
+        name: chrony
+        enabled: yes
+        state: started
+
+    # Configuração da zona de tempo
+    - name: Consulta o fuso horario atual
+      command: timedatectl show -p Timezone --value
+      register: fuso_atual
+      changed_when: false
+
+    - name: Ajusta o fuso horario para America/Recife
+      command: timedatectl set-timezone America/Recife
+      when: fuso_atual.stdout != "America/Recife"
+
+    # Criação do grupo
+    - name: Cria o grupo ifpb
+      group:
+        name: ifpb
+        state: present
+
+    # Criação do usuário ifpb
+    - name: Cria os usuarios murilo e rian
+      user:
+        name: "{{ item }}"
+        group: ifpb
+        groups: ifpb
+        append: yes
+        shell: /bin/bash
+        create_home: yes
+        state: present
+      loop:
+        - murilo
+        - rian
+
+    # Configuração das chaves ssh
+    - name: Cria o diretorio .ssh dos usuarios
+      file:
+        path: "/home/{{ item }}/.ssh"
+        state: directory
+        owner: "{{ item }}"
+        group: ifpb
+        mode: "0700"
+      loop:
+        - murilo
+        - rian
+
+    - name: Copia as chaves publicas dos usuarios
+      copy:
+        src: "chaves/key-{{ item }}.pub"
+        dest: "/home/{{ item }}/.ssh/authorized_keys"
+        owner: "{{ item }}"
+        group: ifpb
+        mode: "0600"
+      loop:
+        - murilo
+        - rian
+
+  handlers:
+    - name: restart chrony
+      service:
+        name: chrony
+        state: restarted

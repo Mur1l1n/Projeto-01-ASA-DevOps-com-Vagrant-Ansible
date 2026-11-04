@@ -1,3 +1,10 @@
-.vagrant/
 *.log
 *.retry
+
+#vagrant configs
+.vagrant/
+vagrant-ssh-config
+
+#Chaves privadas dos integrantes
+playbooks/chaves/key-murilo
+playbooks/chaves/key-rian
