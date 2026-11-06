@@ -1,0 +1,15 @@
+
+$TTL 86400
+@ IN SOA arq.murilo.rian.devops. root.murilo.rian.devops. (
+    2026110601 ; Serial
+    3600       ; Refresh
+    1800       ; Retry
+    604800     ; Expire
+    86400      ; Minimum TTL
+)
+
+@   IN NS arq.murilo.rian.devops.
+
+arq IN A 192.168.56.105
+db  IN A 192.168.56.102
+app IN A 192.168.56.152

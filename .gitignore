@@ -1,3 +1,4 @@
+# Logs e arquivos temporarios
 *.log
 *.retry
 
@@ -5,6 +6,19 @@
 .vagrant/
 vagrant-ssh-config
 
+# Outros arquivos de credenciais
+.env
+.env.*
+!.env.example
+*.pem
+*.p12
+*.pfx
+
+
 #Chaves privadas dos integrantes
 playbooks/chaves/key-murilo
 playbooks/chaves/key-rian
+
+# Ferramentas de IA
+.agents/
+.codex/

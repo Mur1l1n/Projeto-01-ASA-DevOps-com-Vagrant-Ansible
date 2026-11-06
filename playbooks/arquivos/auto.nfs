@@ -1,0 +1,1 @@
+/var/nfs -fstype=nfs,rw 192.168.56.105:/dados/nfs

@@ -1,0 +1,252 @@
+---
+- name: Configura o Servidor DHCP
+  hosts: arq
+  become: true
+
+  tasks:
+    - name: Instala o servidor DHCP
+      apt:
+        name: isc-dhcp-server
+        update_cache: yes
+        state: present
+
+    - name: Configura a interface do servidor DHCP
+      lineinfile:
+        path: /etc/default/isc-dhcp-server
+        regexp: '^INTERFACESv4='
+        line: 'INTERFACESv4="eth1"'
+      notify: restart dhcp
+
+    - name: Copia o arquivo de configuração do DHCP
+      copy:
+        src: arquivos/dhcpd.conf
+        dest: /etc/dhcp/dhcpd.conf
+        owner: root
+        group: root
+        mode: "0644"
+      notify: restart dhcp
+
+    - name: Verifica a configuração do DHCP
+      command: dhcpd -t -4 -cf /etc/dhcp/dhcpd.conf
+      changed_when: false
+
+    - name: Habilita o serviço DHCP
+      service:
+        name: isc-dhcp-server
+        state: started
+        enabled: yes
+    
+    - name: Instala o servidor BIND9
+      package:
+        name: bind9
+        state: present
+
+    - name: Instala o pacote bind9utils
+      package:
+        name: bind9utils
+        state: present
+
+    - name: Copia o arquivo named.conf.options
+      copy:
+        src: arquivos/named.conf.options
+        dest: /etc/bind/named.conf.options
+        mode: '0644'
+      notify: restart bind
+    
+    - name: Copia o arquivo named.conf.internal-zones
+      copy:
+        src: arquivos/named.conf.internal-zones
+        dest: /etc/bind/named.conf.internal-zones
+        mode: '0644'
+      notify: restart bind
+
+    - name: Copia a zona direta
+      copy: 
+        src: arquivos/murilo.rian.devops.db
+        dest: /etc/bind/murilo.rian.devops.db
+        mode: '0644'
+      notify: restart bind
+
+    - name: Copia a zona reversa
+      copy: 
+        src: arquivos/56.168.192.db
+        dest: /etc/bind/56.168.192.db
+        mode: '0644'
+      notify: restart bind
+
+    - name: Inclui as zonas internas no BIND9
+      lineinfile:
+        path: /etc/bind/named.conf
+        line: 'include "/etc/bind/named.conf.internal-zones";'
+        state: present
+      notify: restart bind
+
+    - name: Verifica a configuração do BIND9
+      command: named-checkconf -z
+      changed_when: false
+
+    - name: Verifica a zona direta
+      command: named-checkzone murilo.rian.devops /etc/bind/murilo.rian.devops.db
+      changed_when: false
+
+    - name: Verifica a zona reversa
+      command: named-checkzone 56.168.192.in-addr.arpa /etc/bind/56.168.192.db
+      changed_when: false
+    
+    - name: Habilita o serviço BIND9
+      service:
+        name: bind9
+        state: started
+        enabled: yes
+
+    - name: Instala o pacote lvm2
+      apt:
+        name: lvm2
+        update_cache: yes
+        state: present
+
+    - name: Consulta os volumes fisicos existentes
+      command: pvs --noheadings -o pv_name
+      register: pvs_existentes
+      changed_when: false
+    
+    - name: Cria os volumes fisicos
+      command: "pvcreate {{ item }}"
+      loop:
+        - /dev/sdb
+        - /dev/sdc
+        - /dev/sdd
+      when: item not in pvs_existentes.stdout
+
+    - name: Verifica se o VG dados existe
+      command: vgs dados
+      register: vg_existente
+      changed_when: false
+      failed_when: false
+
+    - name: Cria o volume group dados
+      command: vgcreate dados /dev/sdb /dev/sdc /dev/sdd
+      when: vg_existente.rc != 0
+
+    - name: Verifica se o LV ifpb existe
+      command: lvs dados/ifpb
+      register: lv_existente
+      changed_when: false
+      failed_when: false
+    
+    - name: Cria o logical volume ifpb de 15 GB
+      command: lvcreate -L 15G -n ifpb dados
+      when: vg_existente.rc != 0
+
+    - name: Verifica o sistema de arquivos do LV
+      command: blkid -s TYPE -o value /dev/dados/ifpb
+      register: tipo_fs
+      changed_when: false
+      failed_when: false
+    
+    - name: Impede formatação de sistema de arquivos diferente
+      fail:
+        msg: O volume ja possui um sistema de arquivos diferente de ext4.
+      when:
+        - tipo_fs.rc == 0
+        - tipo_fs.stdout != "ext4"
+
+    - name: Formata o LV ifpb com ext4
+      command: mkfs.ext4 /dev/dados/ifpb
+      when: tipo_fs.rc != 0
+    
+    - name: Cria o diretorio dados
+      file:
+        path: /dados
+        state: directory
+        mode: '0755'
+    
+    - name: Configura a montagem automatica
+      lineinfile: 
+        path: /etc/fstab
+        regexp: '^/dev/dados/ifpb\s+/dados\s+'
+        line: '/dev/dados/ifpb /dados ext4 defaults 0 2'
+        state: present
+        backup: yes
+    
+    - name: Verifica se os dados ja esta montado
+      command: findmnt -rn -o SOURCE --mountpoint /dados
+      register: montagem_atual
+      changed_when: false
+      failed_when: false
+
+    - name: Impede substituição de uma montagem existente
+      fail:
+        msg: O diretorio /dados ja utiliza outro dispositivo.
+      when:
+        - montagem_atual.rc == 0
+        - "'ifpb' not in montagem_atual.stdout"
+    
+    - name: Monta o volume logico em dados
+      command: mount /dados
+      when: montagem_atual.rc != 0
+
+    - name: Instala o servidor NFS
+      apt:
+        name: nfs-kernel-server
+        update_cache: yes
+        state: present
+
+    - name: Cria o grupo nfs-ifpb
+      group:
+        name: nfs-ifpb
+        state: present
+
+    - name: Cria o usuario nfs-ifpb sem shell
+      user:
+        name: nfs-ifpb
+        group: nfs-ifpb
+        shell: /usr/sbin/nologin
+        create_home: no
+        state: present
+
+    - name: Cria o diretorio compartilhado NFS
+      file:
+        path: /dados/nfs
+        state: directory
+        owner: nfs-ifpb
+        group: nfs-ifpb
+        mode: '0700'
+
+    - name: Consulta o UID de nfs-ifpb
+      command: id -u nfs-ifpb
+      register: uid_nfs
+      changed_when: false
+
+    - name: Consulta o GID de nfs-ifpb
+      command: id -g nfs-ifpb
+      register: gid_nfs
+      changed_when: false
+
+    - name: Configura o compartilhamento NFS
+      lineinfile:
+        path: /etc/exports
+        regexp: '^/dados/nfs\s+'
+        line: "/dados/nfs 192.168.56.0/24(rw,sync,no_subtree_check,all_squash,anonuid={{ uid_nfs.stdout }},anongid={{ gid_nfs.stdout }})"
+        state: present
+      notify: atualiza exports nfs
+
+    - name: Habilita o servidor NFS
+      service:
+        name: nfs-kernel-server
+        state: started
+        enabled: yes
+
+  handlers:
+    - name: restart dhcp
+      service:
+        name: isc-dhcp-server
+        state: restarted
+
+    - name: restart bind
+      service:
+        name: bind9
+        state: restarted
+
+    - name: atualiza exports nfs
+      command: exportfs -ra

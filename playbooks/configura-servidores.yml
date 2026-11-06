@@ -92,6 +92,20 @@
         - murilo
         - rian
 
+    - name: Instala o cliente NFS
+      apt:
+        name: nfs-common
+        state: present
+
+    - name: Permite acesso root ao grupo ifpb usando sudo
+      copy:
+        dest: /etc/sudoers.d/ifpb
+        content: "%ifpb ALL=(ALL:ALL) NOPASSWD: ALL\n"
+        owner: root
+        group: root
+        mode: "0440"
+        validate: '/usr/sbin/visudo -cf %s'
+
   handlers:
     - name: restart chrony
       service:

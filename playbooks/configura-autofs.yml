@@ -1,0 +1,46 @@
+
+---
+- name: Configura montagem NFS automatica com autofs
+  hosts: "db:app:cli"
+  become: true
+
+  tasks:
+    - name: Instala o autofs
+      apt:
+        name: autofs
+        update_cache: yes
+        state: present
+
+    - name: Cria o diretorio de montagem NFS
+      file:
+        path: /var/nfs
+        state: directory
+        mode: '0755'
+
+    - name: Copia o mapa NFS
+      copy:
+        src: arquivos/auto.nfs
+        dest: /etc/auto.nfs
+        owner: root
+        group: root
+        mode: '0644'
+      notify: restart autofs
+
+    - name: Configura o mapa no auto.master
+      lineinfile:
+        path: /etc/auto.master
+        line: '/- /etc/auto.nfs --timeout=60'
+        state: present
+      notify: restart autofs
+
+    - name: Habilita o servico autofs
+      service:
+        name: autofs
+        state: started
+        enabled: yes
+
+  handlers:
+    - name: restart autofs
+      service:
+        name: autofs
+        state: restarted
