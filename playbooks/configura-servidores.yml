@@ -1,4 +1,5 @@
 ---
+# Configura a base comum das quatro VMs; become executa as tarefas como administrador.
 - name: Configura os servidores do Projeto 01
   hosts: servidores
   become: true
@@ -92,11 +93,13 @@
         - murilo
         - rian
 
+    # Fornece as ferramentas necessárias para acessar compartilhamentos NFS.
     - name: Instala o cliente NFS
       apt:
         name: nfs-common
         state: present
 
+    # Autoriza sudo sem senha para ifpb e valida a regra antes de gravar o arquivo.
     - name: Permite acesso root ao grupo ifpb usando sudo
       copy:
         dest: /etc/sudoers.d/ifpb
@@ -106,6 +109,7 @@
         mode: "0440"
         validate: '/usr/sbin/visudo -cf %s'
 
+  # Reinicia o Chrony somente quando uma tarefa notifica alteração na configuração.
   handlers:
     - name: restart chrony
       service:

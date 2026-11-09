@@ -1,10 +1,12 @@
 ---
+# Aplica a política SSH em uma VM por vez (serial: 1), com privilégios administrativos.
 - name: Configura a seguranca SSH dos servidores
   hosts: servidores
   become: true
   serial: 1
 
   tasks:
+    # Mantém o usuário vagrant em um dos grupos autorizados para preservar seu acesso.
     - name: Garante a existencia do grupo vagrant
       group:
         name: vagrant
@@ -16,6 +18,7 @@
         groups: vagrant
         append: yes
 
+    # Instala o aviso exibido antes da autenticação.
     - name: Configura a mensagem de saudacao SSH
       copy:
         src: arquivos/issue.net
@@ -24,6 +27,7 @@
         group: root
         mode: "0644"
 
+    # Exige chave pública, bloqueia root e limita os grupos; valida a sintaxe do arquivo.
     - name: Configura as restricoes de acesso SSH
       copy:
         dest: /etc/ssh/sshd_config.d/00-projeto-asa.conf
@@ -41,6 +45,7 @@
         validate: "/usr/sbin/sshd -t -f %s"
       notify: restart ssh
 
+  # Aplica a nova política reiniciando o SSH quando houver alteração notificada.
   handlers:
     - name: restart ssh
       service:

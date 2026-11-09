@@ -1,10 +1,12 @@
 
 ---
+# Monta o NFS do arq sob demanda em db, app e cli ao acessar /var/nfs.
 - name: Configura montagem NFS automatica com autofs
   hosts: "db:app:cli"
   become: true
 
   tasks:
+    # Instala o serviço e prepara o ponto de montagem.
     - name: Instala o autofs
       apt:
         name: autofs
@@ -17,6 +19,7 @@
         state: directory
         mode: '0755'
 
+    # Publica o mapa direto e o registra no auto.master com timeout de 60 segundos.
     - name: Copia o mapa NFS
       copy:
         src: arquivos/auto.nfs
@@ -39,6 +42,7 @@
         state: started
         enabled: yes
 
+  # Recarrega os mapas reiniciando o autofs quando sua configuração muda.
   handlers:
     - name: restart autofs
       service:

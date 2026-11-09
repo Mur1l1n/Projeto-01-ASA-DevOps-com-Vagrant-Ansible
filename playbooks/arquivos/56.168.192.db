@@ -1,4 +1,5 @@
 
+; Tempo de cache e identificação da autoridade da zona reversa (SOA).
 $TTL 86400
 @ IN SOA arq.murilo.rian.devops. root.murilo.rian.devops. (
     2026110601 ; Serial
@@ -8,8 +9,10 @@ $TTL 86400
     86400      ; Minimum TTL
 )
 
+; Servidor responsável pela zona.
 @   IN NS arq.murilo.rian.devops.
 
+; Registros PTR: último octeto do IP e nome completo de cada servidor.
 105 IN PTR arq.murilo.rian.devops.
 102 IN PTR db.murilo.rian.devops.
 152 IN PTR app.murilo.rian.devops.

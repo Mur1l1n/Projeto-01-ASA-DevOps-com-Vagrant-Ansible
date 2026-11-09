@@ -1,0 +1,51 @@
+
+---
+# Prepara o cliente para executar o Firefox remoto e exibir sua janela via SSH/X11.
+- name: Configura o servidor cliente
+  hosts: cli
+  become: true
+
+  tasks:
+    # Instalacao dos pacotes
+    - name: Instala Firefox ESR e Xauth
+      apt:
+        name:
+          - firefox-esr
+          - xauth
+        update_cache: yes
+        state: present
+
+    # Configuracao do X11 via SSH
+    - name: Habilita X11 Forwarding
+      lineinfile:
+        path: /etc/ssh/sshd_config
+        regexp: '^\s*#?\s*X11Forwarding\s+'
+        line: 'X11Forwarding yes'
+        state: present
+      notify: restart ssh
+
+    - name: Configura X11UseLocalhost
+      lineinfile:
+        path: /etc/ssh/sshd_config
+        regexp: '^\s*#?\s*X11UseLocalhost\s+'
+        line: 'X11UseLocalhost no'
+        state: present
+      notify: restart ssh
+
+    # Confere a configuração SSH antes de aplicar as mudanças pelo handler.
+    - name: Verifica a sintaxe do SSH
+      command: /usr/sbin/sshd -t
+      changed_when: false
+
+    - name: Habilita o servico SSH
+      service:
+        name: ssh
+        state: started
+        enabled: yes
+
+  # Reinicia o SSH quando as opções de encaminhamento X11 forem alteradas.
+  handlers:
+    - name: restart ssh
+      service:
+        name: ssh
+        state: restarted

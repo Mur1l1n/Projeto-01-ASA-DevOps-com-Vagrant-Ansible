@@ -1,0 +1,19 @@
+
+---
+# Instala o MariaDB na VM db e mantém o serviço ativo, inclusive após reinicializações.
+- name: Configura o servidor de banco de dados
+  hosts: db
+  become: true
+
+  tasks:
+    - name: Instala o servidor MariaDB
+      apt:
+        name: mariadb-server
+        update_cache: yes
+        state: present
+
+    - name: Habilita o servico MariaDB
+      service:
+        name: mariadb
+        state: started
+        enabled: yes

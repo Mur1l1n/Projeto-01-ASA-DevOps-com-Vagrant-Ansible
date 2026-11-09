@@ -1,0 +1,34 @@
+
+---
+# Disponibiliza a página do projeto via Apache2 na VM app.
+- name: Configura o servidor de aplicacao
+  hosts: app
+  become: true
+
+  # Reinicia o Apache quando a página publicada for alterada.
+  handlers:
+    - name: restart apache
+      service:
+        name: apache2
+        state: restarted
+
+  # Instala o servidor, publica o HTML e mantém o serviço ativo após reinicializações.
+  tasks:
+    - name: Instala o servidor Apache2
+      apt:
+        name: apache2
+        update_cache: yes
+        state: present
+
+    - name: Copia a pagina HTML do projeto
+      copy:
+        src: arquivos/index.html
+        dest: /var/www/html/index.html
+        mode: '0644'
+      notify: restart apache
+
+    - name: Habilita o servico Apache2
+      service:
+        name: apache2
+        state: started
+        enabled: yes

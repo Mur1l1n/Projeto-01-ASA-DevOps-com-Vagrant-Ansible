@@ -1,7 +1,9 @@
+// Define a rede interna autorizada a consultar este servidor DNS.
 acl internal-network{
     192.168.56.0/24;
 };
 
+// Opções gerais: validação DNSSEC, consultas e transferências permitidas.
 options{
     directory "/var/cache/bind";
 
@@ -14,6 +16,7 @@ options{
 
     recursion yes;
 
+    // Encaminha consultas externas para estes servidores DNS.
     forwarders {
         1.1.1.1;
         8.8.8.8;

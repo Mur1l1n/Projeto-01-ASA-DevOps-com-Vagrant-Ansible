@@ -1,9 +1,11 @@
 ---
+# Configura os serviços de rede e armazenamento do arq com privilégios administrativos.
 - name: Configura o Servidor DHCP
   hosts: arq
   become: true
 
   tasks:
+    # DHCP: instala o serviço, seleciona eth1, copia o escopo e valida a configuração.
     - name: Instala o servidor DHCP
       apt:
         name: isc-dhcp-server
@@ -36,6 +38,7 @@
         state: started
         enabled: yes
     
+    # DNS: instala o BIND9 e publica as zonas de nomes e de resolução reversa.
     - name: Instala o servidor BIND9
       package:
         name: bind9
@@ -81,6 +84,7 @@
         state: present
       notify: restart bind
 
+    # Confere a sintaxe do BIND9 e os registros das duas zonas antes do reinício.
     - name: Verifica a configuração do BIND9
       command: named-checkconf -z
       changed_when: false
@@ -99,6 +103,7 @@
         state: started
         enabled: yes
 
+    # LVM: prepara os três discos e reúne seu espaço no grupo de volumes dados.
     - name: Instala o pacote lvm2
       apt:
         name: lvm2
@@ -128,6 +133,7 @@
       command: vgcreate dados /dev/sdb /dev/sdc /dev/sdd
       when: vg_existente.rc != 0
 
+    # Consulta o volume lógico e define sua criação com capacidade de 15 GB.
     - name: Verifica se o LV ifpb existe
       command: lvs dados/ifpb
       register: lv_existente
@@ -138,6 +144,7 @@
       command: lvcreate -L 15G -n ifpb dados
       when: vg_existente.rc != 0
 
+    # Identifica o sistema de arquivos e bloqueia a substituição de um formato diferente.
     - name: Verifica o sistema de arquivos do LV
       command: blkid -s TYPE -o value /dev/dados/ifpb
       register: tipo_fs
@@ -155,6 +162,7 @@
       command: mkfs.ext4 /dev/dados/ifpb
       when: tipo_fs.rc != 0
     
+    # Montagem: registra /dados no fstab e verifica o destino antes de montar o volume.
     - name: Cria o diretorio dados
       file:
         path: /dados
@@ -186,6 +194,7 @@
       command: mount /dados
       when: montagem_atual.rc != 0
 
+    # NFS: instala o servidor e cria a identidade local usada nos acessos remotos.
     - name: Instala o servidor NFS
       apt:
         name: nfs-kernel-server
@@ -213,6 +222,7 @@
         group: nfs-ifpb
         mode: '0700'
 
+    # Obtém UID/GID para mapear todos os usuários remotos para nfs-ifpb (all_squash).
     - name: Consulta o UID de nfs-ifpb
       command: id -u nfs-ifpb
       register: uid_nfs
@@ -237,6 +247,7 @@
         state: started
         enabled: yes
 
+  # Executados quando notificados: reiniciam DHCP/DNS e recarregam as exportações NFS.
   handlers:
     - name: restart dhcp
       service:
