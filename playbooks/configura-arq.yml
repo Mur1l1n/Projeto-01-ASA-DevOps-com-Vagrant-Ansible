@@ -109,19 +109,57 @@
         name: lvm2
         update_cache: yes
         state: present
+      
+    - name: Consulta os discos do arq
+      command: lsblk --bytes --json --paths --output NAME,TYPE,SIZE,FSTYPE,PTTYPE,MOUNTPOINTS
+      register: discos_arq
+      changed_when: false
 
     - name: Consulta os volumes fisicos existentes
-      command: pvs --noheadings -o pv_name
-      register: pvs_existentes
+      command: pvs --reportformat json -o pv_name,vg_name
+      register: relatorio_pvs
       changed_when: false
-    
+
+    - name: Inicializa a selecao dos discos
+      set_fact:
+        discos_lvm: []
+        pvs_arq: "{{ (relatorio_pvs.stdout | from_json).report[0].pv }}"
+
+    - name: Separa os PVs livres e os do grupo dados
+      set_fact:
+        pvs_livres: "{{ pvs_arq | selectattr('vg_name', 'equalto', '') | map(attribute='pv_name') | list }}"
+        pvs_dados: "{{ pvs_arq | selectattr('vg_name', 'equalto', 'dados') | map(attribute='pv_name') | list }}"
+
+    - name: Seleciona os discos adicionais de 10 GB
+      set_fact:
+        discos_lvm: "{{ discos_lvm + [item.name] }}"
+      loop: "{{ (discos_arq.stdout | from_json).blockdevices }}"
+      loop_control:
+        label: "{{ item.name }}"
+      when:
+        - item.type == 'disk'
+        - (item.size | int) in [10000000000, 10737418240]
+        - not item.pttype
+        - not (item.mountpoints | default([], true) | select | list)
+        - >
+          item.name in (pvs_livres + pvs_dados)
+          or (not item.fstype and not (item.children | default([])))
+
+    - name: Confirma os tres discos antes de alterar o LVM
+      assert:
+        that:
+          - discos_lvm | length == 3
+          - pvs_dados | length == 0 or (pvs_dados | sort) == (discos_lvm | sort)
+        fail_msg: "Selecao inesperada: {{ discos_lvm }}. PVs em dados: {{ pvs_dados }}. Nenhum disco foi alterado por este bloco."
+        success_msg: "Discos selecionados para o LVM: {{ discos_lvm }}"
+
     - name: Cria os volumes fisicos
-      command: "pvcreate {{ item }}"
-      loop:
-        - /dev/sdb
-        - /dev/sdc
-        - /dev/sdd
-      when: item not in pvs_existentes.stdout
+      command:
+        argv:
+          - pvcreate
+          - "{{ item }}"
+      loop: "{{ discos_lvm }}"
+      when: item not in (pvs_livres + pvs_dados)
 
     - name: Verifica se o VG dados existe
       command: vgs dados
@@ -130,7 +168,8 @@
       failed_when: false
 
     - name: Cria o volume group dados
-      command: vgcreate dados /dev/sdb /dev/sdc /dev/sdd
+      command: 
+        argv: "{{ ['vgcreate', 'dados'] + discos_lvm }}"
       when: vg_existente.rc != 0
 
     # Consulta o volume lógico e define sua criação com capacidade de 15 GB.

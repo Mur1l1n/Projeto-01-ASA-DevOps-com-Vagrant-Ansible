@@ -9,6 +9,36 @@
       apt:
         update_cache: yes
 
+    - name: Identifica o disco de inicializacao para o GRUB
+      ansible.builtin.shell: |
+        set -eu
+        test ! -d /sys/firmware/efi
+        particao=$(findmnt -en -o SOURCE -T /boot/grub)
+        test -b "$particao"
+        test "$(lsblk -dn -o TYPE "$particao")" = part
+        pai=$(lsblk -dn -o PKNAME "$particao")
+        test -n "$pai"
+        disco="/dev/$pai"
+        test "$(lsblk -dn -o TYPE "$disco")" = disk
+
+        for id in /dev/disk/by-id/*; do
+          [ -L "$id" ] || continue
+          if [ "$(readlink -f "$id")" = "$disco" ]; then
+            printf '%s\n' "$id"
+            exit 0
+          fi
+        done
+
+        printf 'Sem identificador persistente para o disco %s\n' "$disco" >&2
+        exit 1
+      register: disco_grub
+      changed_when: false
+
+    - name: Registra o disco de inicializacao no grub-pc
+      ansible.builtin.command:
+        cmd: debconf-set-selections
+        stdin: "grub-pc grub-pc/install_devices multiselect {{ disco_grub.stdout }}"
+  
     - name: Atualiza o sistema operacional
       apt:
         upgrade: yes

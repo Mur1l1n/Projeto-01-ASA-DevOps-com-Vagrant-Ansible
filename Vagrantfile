@@ -11,6 +11,10 @@ DOMINIO = "#{NOME1}.#{NOME2}.devops"
 MAC_DB  = "0800273A0001"
 MAC_APP = "0800273A0002"
 
+GRUPOS_ANSIBLE = {
+  "servidores" => ["arq", "db", "app", "cli"]
+}
+
 #Configuração do Vagrant
 Vagrant.configure("2") do |config|
   # Base Debian, chave padrão do Vagrant e compartilhamento /vagrant desativado.
@@ -46,10 +50,29 @@ end
   config.vm.define "arq" do |arq|
     arq.vm.hostname = "arq.#{DOMINIO}"
     arq.vm.network :private_network, ip: "192.168.56.1#{XX}"
+    arq.vm.provider :virtualbox do |v|
+      v.linked_clone = true
+      v.check_guest_additions = false
+    end
 
     # Três discos de 10 GB destinados ao armazenamento LVM configurado pelo Ansible.
     (0..2).each do |x|
       arq.vm.disk :disk, size: "10GB", name: "disk-#{x}"
+    end
+    
+    arq.vm.provision "configura-servidores", type: "ansible" do |ansible|
+      ansible.playbook = "playbooks/configura-servidores.yml"
+      ansible.groups = GRUPOS_ANSIBLE
+    end
+
+    arq.vm.provision "configura-ssh", type: "ansible" do |ansible|
+      ansible.playbook = "playbooks/configura-ssh.yml"
+      ansible.groups = GRUPOS_ANSIBLE
+    end
+
+    arq.vm.provision "configura-arq", type: "ansible" do |ansible|
+      ansible.playbook = "playbooks/configura-arq.yml"
+      ansible.groups = GRUPOS_ANSIBLE
     end
   end
 
@@ -58,12 +81,58 @@ end
   config.vm.define "db" do |db|
     db.vm.hostname = "db.#{DOMINIO}"
     db.vm.network :private_network, type: "dhcp", mac: MAC_DB
+    db.vm.provider :virtualbox do |v|
+      v.memory = "512"
+    end
+
+    db.vm.provision "configura-servidores", type: "ansible" do |ansible|
+      ansible.playbook = "playbooks/configura-servidores.yml"
+      ansible.groups = GRUPOS_ANSIBLE
+    end
+
+    db.vm.provision "configura-ssh", type: "ansible" do |ansible|
+      ansible.playbook = "playbooks/configura-ssh.yml"
+      ansible.groups = GRUPOS_ANSIBLE
+    end
+    
+     db.vm.provision "configura-autofs", type: "ansible" do |ansible|
+      ansible.playbook = "playbooks/configura-autofs.yml"
+      ansible.groups = GRUPOS_ANSIBLE
+    end
+
+    db.vm.provision "configura-db", type: "ansible" do |ansible|
+      ansible.playbook = "playbooks/configura-db.yml"
+      ansible.groups = GRUPOS_ANSIBLE
+    end
   end
 
   #Configuração do servidor de aplicação
   config.vm.define "app" do |app|
     app.vm.hostname = "app.#{DOMINIO}"
     app.vm.network :private_network, type: "dhcp", mac: MAC_APP
+    app.vm.provider :virtualbox do |v|
+      v.memory = "512"
+    end
+
+    app.vm.provision "configura-servidores", type: "ansible" do |ansible|
+      ansible.playbook = "playbooks/configura-servidores.yml"
+      ansible.groups = GRUPOS_ANSIBLE
+    end
+
+    app.vm.provision "configura-ssh", type: "ansible" do |ansible|
+      ansible.playbook = "playbooks/configura-ssh.yml"
+      ansible.groups = GRUPOS_ANSIBLE
+    end
+
+    app.vm.provision "configura-autofs", type: "ansible" do |ansible|
+      ansible.playbook = "playbooks/configura-autofs.yml"
+      ansible.groups = GRUPOS_ANSIBLE
+    end
+
+    app.vm.provision "configura-app", type: "ansible" do |ansible|
+      ansible.playbook = "playbooks/configura-app.yml"
+      ansible.groups = GRUPOS_ANSIBLE
+    end
   end
 
   #Configuração do host cliente
@@ -74,6 +143,26 @@ end
     # O cliente recebe mais memória para executar o Firefox com encaminhamento X11.
     cli.vm.provider :virtualbox do |v|
       v.memory = 1024
+    end
+
+    cli.vm.provision "configura-servidores", type: "ansible" do |ansible|
+      ansible.playbook = "playbooks/configura-servidores.yml"
+      ansible.groups = GRUPOS_ANSIBLE
+    end
+
+    cli.vm.provision "configura-ssh", type: "ansible" do |ansible|
+      ansible.playbook = "playbooks/configura-ssh.yml"
+      ansible.groups = GRUPOS_ANSIBLE
+    end
+
+    cli.vm.provision "configura-autofs", type: "ansible" do |ansible|
+      ansible.playbook = "playbooks/configura-autofs.yml"
+      ansible.groups = GRUPOS_ANSIBLE
+    end
+    
+    cli.vm.provision "configura-cli", type: "ansible" do |ansible|
+      ansible.playbook = "playbooks/configura-cli.yml"
+      ansible.groups = GRUPOS_ANSIBLE
     end
   end
 
