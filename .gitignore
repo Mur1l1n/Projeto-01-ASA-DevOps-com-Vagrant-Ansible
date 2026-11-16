@@ -22,6 +22,3 @@ playbooks/chaves/key-rian
 # Ferramentas de IA
 .agents/
 .codex/
-
-# Script de verificação do projeto
-verifica-proj1.py
