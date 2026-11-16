@@ -38,7 +38,7 @@
       ansible.builtin.command:
         cmd: debconf-set-selections
         stdin: "grub-pc grub-pc/install_devices multiselect {{ disco_grub.stdout }}"
-  
+
     - name: Atualiza o sistema operacional
       apt:
         upgrade: yes
@@ -114,7 +114,7 @@
 
     - name: Copia as chaves publicas dos usuarios
       copy:
-        src: "chaves/key-{{ item }}.pub"
+        src: "keys/key-{{ item }}.pub"
         dest: "/home/{{ item }}/.ssh/authorized_keys"
         owner: "{{ item }}"
         group: ifpb
@@ -137,7 +137,7 @@
         owner: root
         group: root
         mode: "0440"
-        validate: '/usr/sbin/visudo -cf %s'
+        validate: "/usr/sbin/visudo -cf %s"
 
   # Reinicia o Chrony somente quando uma tarefa notifica alteração na configuração.
   handlers:
