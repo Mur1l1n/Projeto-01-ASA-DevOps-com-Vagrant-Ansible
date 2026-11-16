@@ -196,6 +196,8 @@ Vagrant.configure("2") do |config|
       ansible.playbook = "playbooks/configura-cli.yml"
       ansible.groups = GRUPOS_ANSIBLE
     end
+
+    cli.vm.network :private_network, **REDE_DHCP.merge(mac: "08002795C9FA")
   end
 
   # Gera o SSH config somente para as VMs que estão em execução.
