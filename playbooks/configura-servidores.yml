@@ -1,54 +1,90 @@
 ---
 # Configura a base comum das quatro VMs; become executa as tarefas como administrador.
-- name: Configura os servidores do Projeto 01
+- name: Configuração dos servidores
   hosts: servidores
   become: true
+  serial: 1
+
+  vars:
+    ssh_keys_dir: "{{ playbook_dir }}/../keys"
+    usuarios:
+      - murilo
+      - rian
+
   tasks:
-    # Atualização do sistema operacional
+    # Configuração das chaves ssh
+    - name: diretorio local para colocar as chaves
+      file:
+        path: "{{ ssh_keys_dir }}"
+        state: directory
+        mode: '0700'
+      delegate_to: localhost
+      run_once: true
+      become: false
+
+    - name: Verificar a existencia das chaves privadas
+      stat:
+        path: "{{ ssh_keys_dir }}/{{ item }}"
+      loop: "{{ usuarios }}"
+      register: ssh_private_keys
+      delegate_to: localhost
+      run_once: true
+      become: false
+
+    - name: Gerar o par de chaves SSH local
+      command: >
+        ssh-keygen -t rsa -b 2048
+        -f "{{ ssh_keys_dir }}/{{ item.item }}"
+        -N ""
+        -C "{{ item.item }}@devops"
+      args:
+        creates: "{{ ssh_keys_dir }}/{{ item.item }}"
+      loop: "{{ ssh_private_keys.results }}"
+      when: not item.stat.exists
+      delegate_to: localhost
+      run_once: true
+      become: false
+
+    - name: Garantir as permissões das chaves privadas
+      file:
+        path: "{{ ssh_keys_dir }}/{{ item }}"
+        mode: '0600'
+      loop: "{{ usuarios }}"
+      delegate_to: localhost
+      run_once: true
+      become: false
+
+    # Atualização e instalação dos pacotes
+    - name: Pré-configurar o grub-pc
+      shell: echo "grub-pc grub-pc/install_devices multiselect /dev/sda" | debconf-set-selections
+      changed_when: false
+
     - name: Atualiza o cache dos pacotes
       apt:
         update_cache: yes
 
-    - name: Identifica o disco de inicializacao para o GRUB
-      ansible.builtin.shell: |
-        set -eu
-        test ! -d /sys/firmware/efi
-        particao=$(findmnt -en -o SOURCE -T /boot/grub)
-        test -b "$particao"
-        test "$(lsblk -dn -o TYPE "$particao")" = part
-        pai=$(lsblk -dn -o PKNAME "$particao")
-        test -n "$pai"
-        disco="/dev/$pai"
-        test "$(lsblk -dn -o TYPE "$disco")" = disk
-
-        for id in /dev/disk/by-id/*; do
-          [ -L "$id" ] || continue
-          if [ "$(readlink -f "$id")" = "$disco" ]; then
-            printf '%s\n' "$id"
-            exit 0
-          fi
-        done
-
-        printf 'Sem identificador persistente para o disco %s\n' "$disco" >&2
-        exit 1
-      register: disco_grub
-      changed_when: false
-
-    - name: Registra o disco de inicializacao no grub-pc
-      ansible.builtin.command:
-        cmd: debconf-set-selections
-        stdin: "grub-pc grub-pc/install_devices multiselect {{ disco_grub.stdout }}"
-
     - name: Atualiza o sistema operacional
       apt:
-        upgrade: yes
+        upgrade: dist
+        cache_valid_time: 3600
+        dpkg_options: 'force-confold,force-confdef'
+      environment:
+        DEBIAN_FRONTEND: noninteractive
 
-    # Configuração do NTP
-    - name: Instala o chrony
+    - name: Instala o chrony e cliente NFS
       apt:
-        name: chrony
+        name:
+          - chrony
+          - nfs-common
         state: present
 
+    # Fornece as ferramentas necessárias para acessar compartilhamentos NFS.
+    - name: Instala o cliente NFS
+      apt:
+        name: nfs-common
+        state: present
+
+    # Configuração da zona de tempo
     - name: Comenta os pools NTP anteriores
       replace:
         path: /etc/chrony/chrony.conf
@@ -70,7 +106,6 @@
         enabled: yes
         state: started
 
-    # Configuração da zona de tempo
     - name: Consulta o fuso horario atual
       command: timedatectl show -p Timezone --value
       register: fuso_atual
@@ -100,6 +135,28 @@
         - murilo
         - rian
 
+    # Autoriza sudo sem senha para ifpb e valida a regra antes de gravar o arquivo.
+    - name: Permite acesso root ao grupo ifpb usando sudo
+      copy:
+        dest: /etc/sudoers.d/ifpb
+        content: "%ifpb ALL=(ALL:ALL) NOPASSWD: ALL\n"
+        owner: root
+        group: root
+        mode: "0440"
+        validate: "/usr/sbin/visudo -cf %s"
+
+    # Mantém o usuário vagrant em um dos grupos autorizados para preservar seu acesso.
+    - name: Garante a existencia do grupo vagrant
+      group:
+        name: vagrant
+        state: present
+
+    - name: Garante que vagrant pertence ao grupo vagrant
+      user:
+        name: vagrant
+        groups: vagrant
+        append: yes
+
     # Configuração das chaves ssh
     - name: Cria o diretorio .ssh dos usuarios
       file:
@@ -114,7 +171,7 @@
 
     - name: Copia as chaves publicas dos usuarios
       copy:
-        src: "keys/key-{{ item }}.pub"
+        src: "{{ ssh_keys_dir }}/{{ item }}.pub"
         dest: "/home/{{ item }}/.ssh/authorized_keys"
         owner: "{{ item }}"
         group: ifpb
@@ -123,25 +180,42 @@
         - murilo
         - rian
 
-    # Fornece as ferramentas necessárias para acessar compartilhamentos NFS.
-    - name: Instala o cliente NFS
-      apt:
-        name: nfs-common
-        state: present
-
-    # Autoriza sudo sem senha para ifpb e valida a regra antes de gravar o arquivo.
-    - name: Permite acesso root ao grupo ifpb usando sudo
+    # Instala o aviso exibido antes da autenticação.
+    - name: Configura a mensagem de saudacao SSH
       copy:
-        dest: /etc/sudoers.d/ifpb
-        content: "%ifpb ALL=(ALL:ALL) NOPASSWD: ALL\n"
+        src: arquivos/issue.net
+        dest: /etc/issue.net
         owner: root
         group: root
-        mode: "0440"
-        validate: "/usr/sbin/visudo -cf %s"
+        mode: "0644"
 
-  # Reinicia o Chrony somente quando uma tarefa notifica alteração na configuração.
+    # Exige chave pública, bloqueia root e limita os grupos; valida a sintaxe do arquivo.
+    - name: Configura as restricoes de acesso SSH
+      copy:
+        dest: /etc/ssh/sshd_config.d/00-projeto-asa.conf
+        owner: root
+        group: root
+        mode: "0644"
+        content: |
+          PubkeyAuthentication yes
+          PasswordAuthentication no
+          KbdInteractiveAuthentication no
+          AuthenticationMethods publickey
+          PermitRootLogin no
+          AllowGroups vagrant ifpb
+          Banner /etc/issue.net
+        validate: "/usr/sbin/sshd -t -f %s"
+      notify: restart ssh
+
   handlers:
+    # Reinicia o Chrony somente quando uma tarefa notifica alteração na configuração.
     - name: restart chrony
       service:
         name: chrony
+        state: restarted
+
+    # Aplica a nova política reiniciando o SSH quando houver alteração notificada.
+    - name: restart ssh
+      service:
+        name: ssh
         state: restarted

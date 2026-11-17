@@ -1,13 +1,11 @@
 // Zona direta: associa os nomes dos servidores aos seus endereços IP.
 zone "murilo.rian.devops" IN {
     type master; 
-    file "/etc/bind/murilo.rian.devops.db";
-    allow-update { none; };
+    file "/etc/bind/db.murilo.rian.devops";
 };
 
 // Zona reversa: associa endereços da rede 192.168.56.0/24 aos nomes.
 zone "56.168.192.in-addr.arpa" IN {
     type master;
-    file "/etc/bind/56.168.192.db";
-    allow-update { none; };
+    file "/etc/bind/db.192.168.56";
 };

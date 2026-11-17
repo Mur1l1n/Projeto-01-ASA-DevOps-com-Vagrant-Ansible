@@ -6,14 +6,12 @@
   become: true
 
   tasks:
-    - name: Instala o servidor MariaDB
+    - name: Instala o servidor MariaDB e o Autofs
       apt:
-        name: mariadb-server
-        update_cache: yes
+        name: 
+        - mariadb-server
+        - autofs
         state: present
+        update_cache: yes
 
-    - name: Habilita o servico MariaDB
-      service:
-        name: mariadb
-        state: started
-        enabled: yes
+- import_playbook: configura-autofs.yml

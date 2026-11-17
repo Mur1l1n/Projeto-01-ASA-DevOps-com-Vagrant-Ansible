@@ -1,12 +1,8 @@
 
 ; Tempo de cache e identificação da autoridade da zona (SOA).
-$TTL 86400
+$TTL 604800
 @ IN SOA arq.murilo.rian.devops. root.murilo.rian.devops. (
-    2026110601 ; Serial
-    3600       ; Refresh
-    1800       ; Retry
-    604800     ; Expire
-    86400      ; Minimum TTL
+   1 604800 86400 2419200 604800
 )
 
 ; Servidor responsável pela zona.
@@ -16,4 +12,3 @@ $TTL 86400
 arq IN A 192.168.56.105
 db  IN A 192.168.56.102
 app IN A 192.168.56.152
-cli IN A 192.168.56.103

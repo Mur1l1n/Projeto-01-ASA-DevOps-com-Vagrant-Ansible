@@ -1,24 +1,9 @@
-// Define a rede interna autorizada a consultar este servidor DNS.
-acl internal-network{
-    192.168.56.0/24;
-};
-
 // Opções gerais: validação DNSSEC, consultas e transferências permitidas.
 options{
     directory "/var/cache/bind";
-
-    dnssec-validation auto;
-
-    listen-on-v6 { any; };
-
-    allow-query { localhost; internal-network; };
-    allow-transfer { localhost; };
-
+    listen-on { 127.0.0.1; 192.168.56.102; };
+    allow-query { 192.168.56.0/24; localhost; };
+    allow-transfer { 192.168.56.0/24; localhost; };
     recursion yes;
-
-    // Encaminha consultas externas para estes servidores DNS.
-    forwarders {
-        1.1.1.1;
-        8.8.8.8;
-    };
+    forwarders { 1.1.1.1; 8.8.8.8; };
 };
