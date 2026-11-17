@@ -1,5 +1,8 @@
 
 ; Tempo de cache e identificação da autoridade da zona reversa (SOA).
+; TTL de 7 dias; tempos do SOA em segundos.
+; SOA: serial, refresh, retry, expire e TTL negativo, nessa ordem.
+; Incremente o serial ao publicar alterações na zona.
 $TTL 604800
 @ IN SOA arq.murilo.rian.devops. admin.murilo.rian.devops. (
     1 604800 86400 2419200 604800

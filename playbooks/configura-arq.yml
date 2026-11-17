@@ -7,7 +7,7 @@
   become: true
 
   tasks:
-    # Instalação dos pacotes.
+    # Instala DHCP, DNS e ferramentas de validação, gerenciamento LVM e servidor NFS.
     - name: Instala o servidor DHCP
       apt:
         name: isc-dhcp-server
@@ -68,6 +68,7 @@
       register: relatorio_pvs
       changed_when: false
 
+    # Converte os relatórios JSON em fatos usados na seleção segura dos discos.
     - name: Inicializa a selecao dos discos
       set_fact:
         discos_lvm: []
@@ -78,6 +79,8 @@
         pvs_livres: "{{ pvs_arq | selectattr('vg_name', 'equalto', '') | map(attribute='pv_name') | list }}"
         pvs_dados: "{{ pvs_arq | selectattr('vg_name', 'equalto', 'dados') | map(attribute='pv_name') | list }}"
 
+    # Aceita discos de 10 GB/GiB sem tabela de partições nem montagem.
+    # Reutiliza PVs livres ou do VG dados; discos novos devem estar vazios.
     - name: Seleciona os discos adicionais de 10 GB
       set_fact:
         discos_lvm: "{{ discos_lvm + [item.name] }}"
@@ -93,6 +96,7 @@
           item.name in (pvs_livres + pvs_dados)
           or (not item.fstype and not (item.children | default([])))
 
+    # Interrompe se a seleção divergir dos três discos esperados ou do VG existente.
     - name: Confirma os tres discos antes de alterar o LVM
       assert:
         that:
@@ -101,6 +105,7 @@
         fail_msg: "Selecao inesperada: {{ discos_lvm }}. PVs em dados: {{ pvs_dados }}. Nenhum disco foi alterado por este bloco."
         success_msg: "Discos selecionados para o LVM: {{ discos_lvm }}"
 
+    # Inicializa somente discos que ainda não são PVs e cria dados se estiver ausente.
     - name: Cria os volumes fisicos
       command:
         argv:
@@ -120,7 +125,9 @@
         argv: "{{ ['vgcreate', 'dados'] + discos_lvm }}"
       when: vg_existente.rc != 0
 
-    # Consulta o volume lógico e define sua criação com capacidade de 15 GB.
+    # Consulta o LV ifpb e solicita 15 GiB para sua criação.
+    # A condição atual usa a ausência inicial do VG, não o resultado da consulta ao LV;
+    # se dados já existir sem ifpb, esta tarefa não recria o volume lógico.
     - name: Verifica se o LV ifpb existe
       command: lvs dados/ifpb
       register: lv_existente
@@ -271,7 +278,7 @@
       command: named-checkzone 56.168.192.in-addr.arpa /etc/bind/db.192.168.56
       changed_when: false
 
-    # Habilitação dos serviços.
+    # Inicia DHCP, BIND9 e NFS e habilita sua inicialização no boot das VMs.
     - name: Habilita o serviço DHCP
       service:
         name: isc-dhcp-server

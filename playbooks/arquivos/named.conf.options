@@ -1,7 +1,10 @@
-// Opções gerais: validação DNSSEC, consultas e transferências permitidas.
+// Opções do BIND9: cache em disco e escuta no loopback e na rede privada.
+// Consultas e transferências de zona são permitidas à rede do laboratório e ao localhost.
+// A recursão está ativa; consultas externas usam os encaminhadores indicados.
+// Este arquivo não define uma política explícita de validação DNSSEC.
 options{
     directory "/var/cache/bind";
-    listen-on { 127.0.0.1; 192.168.56.102; };
+    listen-on { 127.0.0.1; 192.168.56.105; };
     allow-query { 192.168.56.0/24; localhost; };
     allow-transfer { 192.168.56.0/24; localhost; };
     recursion yes;

@@ -8,7 +8,8 @@
   become: true
 
   tasks:
-    # Instalacao dos pacotes
+    # Firefox ESR executa na VM; xauth permite autenticação da sessão X11.
+    # autofs atende à montagem NFS configurada pelo playbook importado ao final.
     - name: Instala Firefox ESR, Xauth e o Autofs
       apt:
         name:
@@ -17,7 +18,8 @@
           - autofs
         state: present
 
-    # Configuracao do X11 via SSH
+    # Permite encaminhar janelas gráficas pela conexão SSH.
+    # A máquina que abre a conexão precisa disponibilizar um servidor X.
     - name: Habilita X11 Forwarding
       lineinfile:
         path: /etc/ssh/sshd_config
@@ -32,4 +34,5 @@
         name: ssh
         state: restarted
 
+# Reutiliza o mapa NFS para acessar os mesmos arquivos de app e db.
 - import_playbook: configura-autofs.yml

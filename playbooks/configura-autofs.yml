@@ -5,6 +5,8 @@
   hosts: "db:app:cli"
   become: true
 
+  # Depende de autofs instalado e da resolução do nome DNS do arq.
+  # O padrão db:app:cli seleciona a união dos três grupos do inventário.
   tasks:
     - name: Cria o diretorio de montagem NFS
       file:
@@ -12,6 +14,8 @@
         state: directory
         mode: '0755'
 
+    # Gera o mapa diretamente aqui; arquivos/auto.nfs não é copiado por esta tarefa.
+    # A chave absoluta /var/nfs é interpretada como ponto de montagem direto.
     - name: Copia o mapa NFS
       copy:
         dest: /etc/auto.nfs
@@ -19,6 +23,8 @@
         mode: '0644'
       notify: restart autofs
 
+    # Registra o mapa direto antes da inclusão padrão do sistema.
+    # Após 60 segundos ociosa, a montagem pode ser desmontada pelo autofs.
     - name: Configura o mapa no auto.master
       lineinfile:
         path: /etc/auto.master

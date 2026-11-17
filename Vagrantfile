@@ -1,13 +1,16 @@
 # -*- mode: ruby -*-
 # vi: set ft=ruby :
 
+# Grupo entregue ao inventário gerado pelo provisionador Ansible do Vagrant.
+# Permite reutilizar o playbook comum nas quatro máquinas.
 GRUPOS_ANSIBLE = {
   "servidores" => ["arq", "db", "app", "cli"]
 }
 
 # Configuração do Vagrant
 Vagrant.configure("2") do |config|
-  # Base Debian, chave padrão do Vagrant e compartilhamento /vagrant desativado.
+  # Define a imagem Debian 12 e mantém a chave SSH padrão do Vagrant.
+  # O compartilhamento /vagrant não é configurado explicitamente neste arquivo.
   config.vm.box = "debian/bookworm64"
   config.ssh.insert_key = false
 
@@ -16,23 +19,23 @@ Vagrant.configure("2") do |config|
     config.vbguest.auto_update = false
   end
 
-  # Recursos padrão das VMs e clones vinculados para economizar espaço.
+  # Clones vinculados reutilizam o disco da imagem base para economizar espaço.
+  # A verificação de Guest Additions é desativada para este laboratório.
   config.vm.provider :virtualbox do |v|
     v.linked_clone = true
     v.check_guest_additions = false
   end
 
-  # Prepara o DHCP uma vez por comando, antes de iniciar qualquer VM.
-  # Esta versão usa o DHCP do VirtualBox, sem um segundo servidor DHCP na arq.
-  config.trigger.before [:up, :reload], type: :command do |trigger|
-    trigger.info = "Configurando o DHCP do VirtualBox na vboxnet0"
-    trigger.run = {
-      inline: "vboxmanage dhcpserver modify --interface=vboxnet0 --disable"
-    }
-    trigger.on_error = :continue
+  # Antes da ação de aguardar comunicação SSH, desativa o DHCP do VirtualBox
+  # na interface vboxnet0. O DHCP do laboratório será fornecido pela VM arq.
+  # O gatilho pode executar a cada ocorrência dessa ação durante a inicialização.
+  config.trigger.before :"Vagrant::Action::Builtin::WaitForCommunicator", type: :action do |t|
+    t.warn = "Interrompe o servidor dhcp do virtualbox"
+    t.run = {inline: "vboxmanage dhcpserver modify --disable --interface vboxnet0"} 
   end
 
-  # Configuração do servidor de arquivos
+  # arq concentra DHCP, DNS, LVM e NFS; seu IP fixo permite iniciar a rede.
+  # Reserva 512 MB de RAM e usa o playbook específico após criar a VM.
   config.vm.define "arq" do |arq|
     arq.vm.hostname = "arq.murilo.rian.devops"
     arq.vm.network :private_network, ip: "192.168.56.105"
@@ -53,7 +56,7 @@ Vagrant.configure("2") do |config|
   end
 
   # db e app recebem IP por DHCP, com reservas identificadas pelos MACs abaixo.
-  # Configuração do servidor de banco de dados
+  # db recebe 512 MB de RAM e instala MariaDB e o cliente autofs via Ansible.
   config.vm.define "db" do |db|
     db.vm.hostname = "db.murilo.rian.devops"
     db.vm.network "private_network", type: "dhcp", mac: "0800273A0001"
@@ -67,7 +70,8 @@ Vagrant.configure("2") do |config|
     end
   end
 
-  # Configuração do servidor de aplicação
+  # app recebe 512 MB de RAM e publica a página HTML com Apache2.
+  # Seu MAC corresponde à reserva 192.168.56.152 em arquivos/dhcpd.conf.
   config.vm.define "app" do |app|
     app.vm.hostname = "app.murilo.rian.devops"
     app.vm.network "private_network", type: "dhcp", mac: "0800273A0002" 
@@ -81,7 +85,8 @@ Vagrant.configure("2") do |config|
     end
   end
 
-  # Configuração do host cliente
+  # cli recebe IP dinâmico e 1024 MB de RAM para executar o Firefox via X11.
+  # O provisionamento instala as ferramentas de acesso e o autofs.
   config.vm.define "cli" do |cli|
     cli.vm.hostname = "cli.murilo.rian.devops"
     cli.vm.network "private_network", type: "dhcp"

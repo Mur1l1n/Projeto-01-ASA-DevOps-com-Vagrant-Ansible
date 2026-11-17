@@ -1,6 +1,8 @@
-
 ---
-# Instala o MariaDB na VM db e mantém o serviço ativo, inclusive após reinicializações.
+# Aplica usuários, SSH, atualização do sistema e sincronização de horário.
+- import_playbook: configura-servidores.yml
+# Instala MariaDB e autofs na VM db, atualizando antes o índice de pacotes.
+# Não define bancos, contas SQL nem gerencia explicitamente o serviço MariaDB.
 - name: Configura o servidor de banco de dados
   hosts: db
   become: true
@@ -8,10 +10,11 @@
   tasks:
     - name: Instala o servidor MariaDB e o Autofs
       apt:
-        name: 
-        - mariadb-server
-        - autofs
+        name:
+          - mariadb-server
+          - autofs
         state: present
         update_cache: yes
 
+# Compartilha o mesmo mapa de montagem NFS utilizado por app e cli.
 - import_playbook: configura-autofs.yml

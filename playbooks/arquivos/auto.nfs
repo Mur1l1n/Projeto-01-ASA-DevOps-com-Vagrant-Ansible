@@ -1,2 +1,4 @@
-# Mapa direto: ao acessar /var/nfs, monta /dados/nfs do arq com leitura e escrita.
+# Exemplo de mapa direto NFS com acesso por IP e permissão de leitura/escrita.
+# O playbook configura-autofs.yml gera outro mapa com o nome DNS do arq;
+# este arquivo de referência não é copiado pelo provisionamento atual.
 /var/nfs -fstype=nfs,rw 192.168.56.105:/dados/nfs

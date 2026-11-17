@@ -1,25 +1,29 @@
-
 ---
+# Aplica a configuração comum antes das tarefas específicas da aplicação.
 - import_playbook: configura-servidores.yml
 # Disponibiliza a página do projeto via Apache2 na VM app.
 - name: Configura o servidor de aplicacao
   hosts: app
   become: true
 
-  # Instala o servidor, publica o HTML e mantém o serviço ativo após reinicializações.
+  # Instala Apache2 e autofs e substitui a página padrão pelo HTML do projeto.
+  # Não há tarefa explícita de habilitação ou inicialização do Apache neste play.
   tasks:
     - name: Instala o servidor Apache2 e autofs
       apt:
-        name: 
+        name:
           - apache2
           - autofs
         state: present
 
+    # Publica o arquivo local com leitura permitida ao processo do servidor web.
     - name: Copia a pagina HTML do projeto
       copy:
         src: arquivos/index.html
         dest: /var/www/html/index.html
         owner: root
         group: root
-        mode: '0644'
+        mode: "0644"
 
+# Configura o acesso sob demanda ao compartilhamento do arq.
+- import_playbook: configura-autofs.yml

@@ -3,8 +3,10 @@
 - name: Configuração dos servidores
   hosts: servidores
   become: true
+  # Processa uma VM por lote; run_once nas tarefas locais vale por lote.
   serial: 1
 
+  # Chaves ficam na máquina de controle; os nomes também definem as contas locais.
   vars:
     ssh_keys_dir: "{{ playbook_dir }}/../keys"
     usuarios:
@@ -12,7 +14,9 @@
       - rian
 
   tasks:
-    # Configuração das chaves ssh
+    # Executa no controlador sem sudo: cria o diretório, verifica as chaves
+    # e gera pares RSA sem senha apenas quando a chave privada está ausente.
+    # Pares existentes são preservados e recebem permissão privada 0600.
     - name: diretorio local para colocar as chaves
       file:
         path: "{{ ssh_keys_dir }}"
@@ -54,7 +58,8 @@
       run_once: true
       become: false
 
-    # Atualização e instalação dos pacotes
+    # Pré-responde ao instalador do GRUB e atualiza o Debian sem interação.
+    # Preserva configurações existentes nas decisões de atualização de pacotes.
     - name: Pré-configurar o grub-pc
       shell: echo "grub-pc grub-pc/install_devices multiselect /dev/sda" | debconf-set-selections
       changed_when: false
@@ -84,7 +89,8 @@
         name: nfs-common
         state: present
 
-    # Configuração da zona de tempo
+    # Desativa outros pools NTP, usa pool.ntp.br e mantém o Chrony em execução.
+    # Consulta o fuso antes de ajustar America/Recife para evitar mudanças repetidas.
     - name: Comenta os pools NTP anteriores
       replace:
         path: /etc/chrony/chrony.conf
@@ -115,13 +121,13 @@
       command: timedatectl set-timezone America/Recife
       when: fuso_atual.stdout != "America/Recife"
 
-    # Criação do grupo
+    # Grupo compartilhado das contas que receberão acesso administrativo via sudo.
     - name: Cria o grupo ifpb
       group:
         name: ifpb
         state: present
 
-    # Criação do usuário ifpb
+    # Cria murilo e rian com diretório pessoal e shell Bash no grupo ifpb.
     - name: Cria os usuarios murilo e rian
       user:
         name: "{{ item }}"
@@ -157,7 +163,8 @@
         groups: vagrant
         append: yes
 
-    # Configuração das chaves ssh
+    # Cria .ssh e substitui authorized_keys pela chave pública de cada usuário.
+    # Somente as chaves públicas são copiadas para as VMs; as privadas ficam locais.
     - name: Cria o diretorio .ssh dos usuarios
       file:
         path: "/home/{{ item }}/.ssh"
