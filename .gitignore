@@ -1,12 +1,12 @@
-# Exclui logs e arquivos de repetição de tarefas do Ansible.
+# Logs e arquivos temporarios
 *.log
 *.retry
 
-# Estado local das VMs e arquivo auxiliar de conexão SSH do Vagrant.
+#vagrant configs
 .vagrant/
 vagrant-ssh-config
 
-# Arquivos de ambiente e certificados; .env.example continua versionável.
+# Outros arquivos de credenciais
 .env
 .env.*
 !.env.example
@@ -14,11 +14,6 @@ vagrant-ssh-config
 *.p12
 *.pfx
 
-
-# Padrão existente para o diretório local de chaves dos integrantes.
-# O Git não expande ~ neste padrão; ele não exclui o diretório keys/ do projeto.
-~/github/Projeto-01-ASA-DevOps-com-Vagrant-Ansible/keys
-
-# Configurações locais das ferramentas de IA.
+# Ferramentas de IA
 .agents/
 .codex/
